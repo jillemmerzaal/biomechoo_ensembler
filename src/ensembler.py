@@ -1,0 +1,58 @@
+from plotly.subplots import make_subplots
+
+from src.data_store import DataStore
+from src.plot_spec import PlotSpec
+from src.style_content import StyleContext
+import plotly.graph_objs as go
+
+
+class Ensembler:
+
+    def __init__(self,
+                 in_folder: str,
+                 channels: list[str],
+                 conditions: list[str],
+                 n_rows: int,
+                 n_cols: int,
+                 subj_list: list[str] = None,
+                 str_match: list[str] = None):
+
+        self.store = DataStore(in_folder, conditions, subj_list, str_match)
+        self.style = StyleContext(self.store.subjects, conditions)
+        self.n_rows = n_rows
+        self.n_cols = n_cols
+        self.specs: list[PlotSpec] = []
+
+    def add_subplot(self, spec: PlotSpec):
+        self.specs.append(spec)
+        return self
+
+    def build(self, title: str = "Ensembler", height: int = 400, width: int = 500) -> go.Figure:
+        subplot_titles = [""] * (self.n_rows * self.n_cols)
+        for s in self.specs:
+            subplot_titles[(s.row - 1) * self.n_cols + (s.col - 1)] = s.title
+
+        fig = make_subplots(
+            rows=self.n_rows, cols=self.n_cols,
+            subplot_titles=subplot_titles,
+            vertical_spacing=0.12,
+            horizontal_spacing=0.08,
+        )
+
+        for spec in self.specs:
+            spec.renderer.render(
+                fig, self.store, self.style,
+                spec.channel, spec.condition,
+                spec.row, spec.col,
+            )
+            fig.update_xaxes(title_text=spec.x_label, row=spec.row, col=spec.col)
+            fig.update_yaxes(title_text=spec.y_label, row=spec.row, col=spec.col)
+
+        fig.update_layout(
+            title=title,
+            height=height * self.n_rows,
+            width=width * self.n_cols,
+            template="plotly_white",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
+        return fig
