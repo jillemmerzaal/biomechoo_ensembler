@@ -1,6 +1,7 @@
 import plotly.colors as pc
 
 
+
 class StyleContext:
     """
     Owns all color/dash assignments and legend deduplication state.
@@ -19,7 +20,7 @@ class StyleContext:
         subjects : list[str]
         conditions : list[str]
         """
-
+        conditions = conditions or []
         self._subj_color = {
             s: self._SUBJECT_COLORS[i % len(self._SUBJECT_COLORS)] for i, s in enumerate(subjects)
         }

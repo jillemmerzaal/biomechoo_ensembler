@@ -1,10 +1,15 @@
 import re
 
+_NO_CONDITIONS = "__all__"
+
 def match_condition(path, conditions):
+    if not conditions:
+        return _NO_CONDITIONS
+
     for cond in conditions:
         if cond.lower() in path.lower():
             return cond
-    return "Unknown"
+    return None
 
 
 def extract_subject_id(f, subj_list, str_pattern):
@@ -28,11 +33,9 @@ def extract_subject_id(f, subj_list, str_pattern):
         for pattern in str_pattern:
             match = re.search(pattern, f)
             if match:
-                s = match.group(0)
-    elif subj_list:
-        for subj in subj_list:
-           s = [subj for subj in subj_list if subj in f]
-    else:
-        s = "Unknown"
+                return match.group(0)
+    if subj_list:
+        matched = [subj for subj in subj_list if subj in f]
+        return matched[0] if matched else "Unknown"
 
-    return s
+    return "unknown"

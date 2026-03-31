@@ -6,10 +6,10 @@ from src.renderers import Renderer
 @dataclass
 class PlotSpec:
     channel: str
-    condition: str
-    row: int
-    col: int
-    renderer: Renderer
+    condition: str = ""
+    row: int = 1
+    col: int  =1
+    renderer: Renderer = None
     title: str = ""
     x_label: str = ""
     y_label: str = ""

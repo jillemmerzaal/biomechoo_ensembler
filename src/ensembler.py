@@ -6,14 +6,15 @@ from src.style_content import StyleContext
 import plotly.graph_objs as go
 
 
+
 class Ensembler:
 
     def __init__(self,
                  in_folder: str,
                  channels: list[str],
-                 conditions: list[str],
                  n_rows: int,
                  n_cols: int,
+                 conditions: list[str] = None,
                  subj_list: list[str] = None,
                  str_match: list[str] = None):
 
