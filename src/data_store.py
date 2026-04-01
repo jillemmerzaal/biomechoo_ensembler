@@ -12,7 +12,7 @@ class DataStore:
     """
     def __init__(self, fld, conditions, subj_list=None, str_match=None):
         self.fld = fld
-        self.conditions = conditions or []
+        self.conditions = conditions
         self.subj_list = subj_list
         self.str_match = str_match
         self._fl = engine(self.fld)
@@ -56,7 +56,14 @@ class DataStore:
         for f in self._fl:
             data = zload(f)
             matched = match_condition(f, self.conditions)
-            if matched != condition or channel not in data.keys():
+
+            # fall save: condition needs to be all or match the condition currently in favour
+            if matched != "__all__":
+                if matched != condition:
+                    continue
+
+            # fail save: key must be in data.
+            if channel not in data.keys():
                 continue
 
             ch_data = data[channel]

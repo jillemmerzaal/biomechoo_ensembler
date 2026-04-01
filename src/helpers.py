@@ -1,4 +1,6 @@
 import re
+import numpy as np
+
 
 _NO_CONDITIONS = "__all__"
 
@@ -39,3 +41,26 @@ def extract_subject_id(f, subj_list, str_pattern):
         return matched[0] if matched else "Unknown"
 
     return "unknown"
+
+
+def compute_ensemble(arrays):
+    """Compute time normalized mean and standard deviation for a list of arrays.
+
+    Parameters
+    ----------
+    arrays : list[np.ndarray]
+
+    Returns
+    -------
+    mean : array
+    upper : array
+        mean + std
+    lower : array
+        mean - std
+    """
+
+    stack = np.vstack(arrays)
+    mean = np.nanmean(stack, axis=0)
+    std = np.nanstd(stack, axis=0)
+
+    return mean, mean+std, mean-std
