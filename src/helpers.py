@@ -1,6 +1,8 @@
 import re
 import numpy as np
-
+from typing import NamedTuple
+from enum import Enum
+from dataclasses import dataclass
 
 _NO_CONDITIONS = "__all__"
 
@@ -43,6 +45,22 @@ def extract_subject_id(f, subj_list, str_pattern):
     return "unknown"
 
 
+class ZooEvent(NamedTuple):
+    x: float   # frame / time / % gait cycle
+    y: float   # amplitude value
+
+
+def extract_events(ch_data, event_name):
+    """Extracts the named event scalers (value and frame) from a zoo file."""
+    try:
+        x = ch_data["event"][event_name][0]
+        y = ch_data["event"][event_name][1]
+        if y == 999:
+            return None
+        return ZooEvent(x=x, y=y)
+    except (KeyError, TypeError, ValueError):
+        return None
+
 def compute_ensemble(arrays):
     """Compute time normalized mean and standard deviation for a list of arrays.
 
@@ -64,3 +82,17 @@ def compute_ensemble(arrays):
     std = np.nanstd(stack, axis=0)
 
     return mean, mean+std, mean-std
+
+class ConditionSource(Enum):
+    """Enum defining condition sources."""
+    FOLDER = "folder" # Condition encoded in folder/filepath
+    CHANNEL = "channel" # Conditions encoded in channel name suffix/prefix
+
+
+@dataclass
+class ConditionSpec:
+    """Describes how the conditions are encoded in the data"""
+
+    source: ConditionSource
+    conditions: list[str]
+    channel_map: dict[str, str] | None = None

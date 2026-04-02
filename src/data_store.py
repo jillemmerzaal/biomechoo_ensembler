@@ -4,16 +4,21 @@ import re
 from biomechzoo.utils.engine import engine
 from biomechzoo.utils.zload import zload
 
-from src.helpers import match_condition, extract_subject_id
+from src.helpers import match_condition, extract_subject_id, extract_events, ZooEvent, ConditionSource, ConditionSpec
+
 
 class DataStore:
     """
     Loads, indexes and extracts relevant data and information from the zoo files.
     """
-    def __init__(self, fld, conditions, subj_list=None, str_match=None):
+    def __init__(self, fld, condition_spec: ConditionSpec | None=None, events=None, subj_list=None, str_match=None):
         self.fld = fld
-        self.conditions = conditions
+        self.condition_spec = condition_spec or ConditionSpec(
+            source=ConditionSource.FOLDER, conditions=[]
+        )
+        self.conditions = self.condition_spec.conditions
         self.subj_list = subj_list
+        self.event_list = events
         self.str_match = str_match
         self._fl = engine(self.fld)
         self.subjects = self._resolve_subjects()
@@ -22,7 +27,7 @@ class DataStore:
         # lazy caches — populated on first access
         self._extracted: set[tuple[str, str]] = set()
         self._lines: dict[tuple[str, str], list[np.ndarray]] = {}
-        self._events: dict[tuple[str, str], list[float]] = {}
+        self._events: dict[tuple[str, str, str], list[ZooEvent]] = {}
         self._subj_index: dict[tuple[str, str], list[str]] = {}
 
 
@@ -36,9 +41,13 @@ class DataStore:
         self._ensure_extracted(channel, condition)
         return self._lines.get((channel, condition), [])
 
-    def get_events(self, channel, condition):
+    def get_events(self, channel, condition, event_name):
         self._ensure_extracted(channel, condition)
-        return self._events.get((channel, condition), [])
+
+        event_key = (channel, condition, event_name)
+        if event_key not in self._events:
+            self._extract_events(channel, condition, event_name)
+        return self._events.get(event_key, [])
 
     def get_subject_ids(self, channel, condition):
         self._ensure_extracted(channel, condition)
@@ -47,10 +56,17 @@ class DataStore:
 
 
     def _extract(self, channel, condition, ):
+        if self.condition_spec.source == ConditionSource.FOLDER:
+            self._extract_folder(channel, condition)
+        elif self.condition_spec.source == ConditionSource.CHANNEL:
+            self._extract_channel_condition(channel, condition)
+
+
+
+    def _extract_folder(self, channel, condition):
         """Parse all zoo files for on (channel, condition) pair."""
         key = (channel,condition)
         self._lines[key] = []
-        self._events[key] = []
         self._subj_index[key] = []
 
         for f in self._fl:
@@ -72,6 +88,72 @@ class DataStore:
                 arr = np.asarray(raw, dtype=float).squeeze()
                 self._lines[key].append(arr)
                 self._subj_index[key].append(extract_subject_id(f, subj_list=self.subj_list, str_pattern=self.str_match))
+
+    def _extract_channel_condition(self, channel, condition):
+        """
+        Condition lives in the channel name
+        e.g. condition = "vicon -> read channel key "shoulder_abduction_vicon
+             condition = "imu -> read channel key shoulder_abduction_imu
+
+        the channel argument is the BASE channel name (shoulder_abduction). The actual zoo key is extracted from the channel_map
+        """
+        key = (channel, condition)
+        self._lines[key] = []
+        self._subj_index[key] = []
+
+        # resolve zoo channel key — works for both source types
+        zoo_channel = self._resolve_zoo_channel(channel, condition)
+        if zoo_channel is None:
+            return
+
+        for f in self._fl:
+            data = zload(f)
+            if zoo_channel not in data:
+                continue
+
+            ch_data = data[zoo_channel]
+            raw = ch_data.get("line")
+            if raw is not None:
+                arr = np.asarray(raw, dtype=float).squeeze()
+                self._lines[key].append(arr)
+                self._subj_index[key].append(extract_subject_id(f, subj_list=self.subj_list, str_pattern=self.str_match))
+
+    def get_event_values(self, channel: str, condition: str, event_name: str) -> list[float]:
+        """Convenience — y-only, for violin/stats renderers."""
+        return [ev.y for ev in self.get_events(channel, condition, event_name)]
+
+    def _extract_events(self, channel, condition, event_name):
+        """Seperate pass for a events. Only runs when events are needed"""
+        event_key = (channel, condition, event_name)
+        self._events[event_key] = []
+
+        for f in self._fl:
+            data = zload(f)
+            matched = match_condition(f, self.conditions)
+
+            # fall save: condition needs to be all or match the condition currently in favour
+            if matched != "__all__":
+                if matched != condition:
+                    continue
+            # fail save: key must be in data.
+            if channel not in data.keys():
+                continue
+
+            ch_data = data[channel]
+            val = extract_events(ch_data, event_name)
+            if val is not None:
+                self._events[event_key].append(val)
+
+
+    def _resolve_zoo_channel(self, channel, condition):
+        """
+        Returns the actual key to look up in the zoo dict.
+        - FOLDER source  → channel name is used as-is
+        - CHANNEL source → look up from channel_map
+        """
+        if self.condition_spec.source == ConditionSource.CHANNEL:
+            return self.condition_spec.channel_map.get(condition, channel)
+        return channel
 
 
     def _resolve_subjects(self):

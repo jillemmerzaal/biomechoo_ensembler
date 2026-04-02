@@ -10,8 +10,8 @@ class StyleContext:
 
     _SUBJECT_COLORS = pc.qualitative.D3
     _CONDITION_COLORS = pc.qualitative.D3
-    # _CONDITION_DASHES = ["solid", "dash", "dot", "dashdot"]
-    _CONDITION_DASHES = ["solid"]
+    _CONDITION_DASHES = ["solid", "dash", "dot", "dashdot"]
+    # _CONDITION_DASHES = ["solid"]
 
     def __init__(self, subjects , conditions):
         """

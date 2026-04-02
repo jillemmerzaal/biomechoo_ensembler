@@ -1,6 +1,7 @@
 from plotly.subplots import make_subplots
 
 from src.data_store import DataStore
+from src.helpers import ConditionSpec
 from src.plot_spec import PlotSpec
 from src.style_content import StyleContext
 import plotly.graph_objs as go
@@ -14,12 +15,13 @@ class Ensembler:
                  channels: list[str],
                  n_rows: int,
                  n_cols: int,
-                 conditions: list[str] = None,
-                 subj_list: list[str] = None,
-                 str_match: list[str] = None):
+                 condition_spec: ConditionSpec | None = None,
+                 subj_list: list[str] | None = None,
+                 str_match: list[str] | None = None,
+                 events: list[str] = None,):
 
-        self.store = DataStore(in_folder, conditions, subj_list, str_match)
-        self.style = StyleContext(self.store.subjects, conditions)
+        self.store = DataStore(fld=in_folder, condition_spec=condition_spec, events=events, subj_list=subj_list, str_match=str_match)
+        self.style = StyleContext(self.store.subjects, self.store.conditions)
         self.n_rows = n_rows
         self.n_cols = n_cols
         self.specs: list[PlotSpec] = []
@@ -45,6 +47,7 @@ class Ensembler:
                 fig, self.store, self.style,
                 spec.channel, spec.condition,
                 spec.row, spec.col,
+                events=spec.events,
             )
             fig.update_xaxes(title_text=spec.x_label, row=spec.row, col=spec.col)
             fig.update_yaxes(title_text=spec.y_label, row=spec.row, col=spec.col)
