@@ -3,6 +3,7 @@ import numpy as np
 from typing import NamedTuple
 from enum import Enum
 from dataclasses import dataclass
+from scipy.stats import iqr
 
 _NO_CONDITIONS = "__all__"
 
@@ -96,3 +97,13 @@ class ConditionSpec:
     source: ConditionSource
     conditions: list[str]
     channel_map: dict[str, str] | None = None
+
+def _compute_bandwidth(values: list[float]) -> float:
+    """Silverman's rule of thumb — bandwidth scaled to data spread.
+    More robust than Scott's rule when outliers are present."""
+
+    arr = np.asarray(values)
+    n=len(arr)
+    std = np.std(arr, ddof=1)
+    spread = min(std, iqr(arr) / 1.34)
+    return 0.9 * spread * n ** (-1 / 5)

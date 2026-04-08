@@ -40,14 +40,14 @@ class Ensembler:
             subplot_titles=subplot_titles,
             vertical_spacing=0.12,
             horizontal_spacing=0.08,
+            shared_xaxes=False,
+            shared_yaxes=False,
         )
 
         for spec in self.specs:
             spec.renderer.render(
                 fig, self.store, self.style,
-                spec.channel, spec.condition,
-                spec.row, spec.col,
-                events=spec.events,
+                spec,spec.row, spec.col
             )
             fig.update_xaxes(title_text=spec.x_label, row=spec.row, col=spec.col)
             fig.update_yaxes(title_text=spec.y_label, row=spec.row, col=spec.col)
