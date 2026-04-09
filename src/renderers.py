@@ -4,7 +4,7 @@ import plotly.graph_objs as go
 import numpy as np
 
 from src.style_content import StyleContext
-from src.helpers import compute_ensemble, _compute_bandwidth
+from src.helpers import compute_ensemble, _compute_bandwidth, _align_by_subject
 
 
 #### Plot options to add
@@ -165,6 +165,88 @@ class ViolinRenderer(Renderer):
                         showlegend=show_leg,
                     ), row=row, col=col)
 
+
+class BlandAltmanRenderer(Renderer):
+    """
+    Plots a BlandAltman agreement plot between two conditions
+
+    Requires exactly two conditions via spec.all_conditions.
+
+    Computes:
+    mean = (method_A - method_B) / 2
+    diff = methodA - method_B
+    bias = mean(diff)
+    LoA = bias +/- 1.96 * std(diff)
+
+    Works with either:
+    - line data (Uses a scaler per trial, e.g. mean of the line)
+    - event data (Uses event scaler directly, e.g. "max")
+    """
+
+    def __init__(self, use_events: bool = False, show_subjects: bool = False, loa_multiplier: float = 1.96, line_scaler : str = "mean"):
+
+        if line_scaler not in ("mean", "max", "min", "median"):
+            raise ValueError("line_scaler must be one of 'mean', 'max', 'min', or 'median'")
+        self.use_events = use_events
+        self.show_subjects = show_subjects
+        self.loa_multiplier = loa_multiplier
+        self.line_scaler = line_scaler
+
+
+    def render(self, fig, store, style, spec, row, col):
+        if len(spec.all_conditions) != 2:
+            raise ValueError(f"BlandAltmanRenderer requires exactly two conditions, "
+                             f"got {spec.all_conditions}. Use companions= to specify the second")
+
+        cond_a, cond_b = spec.all_conditions
+
+        if self.use_events:
+            if not spec.events:
+                raise ValueError(f"BlandAltmanRenderer with use_events=True requires events to be specified ")
+            event_name = spec.events[0]
+
+            vals_a = store.get_event_values(spec.channel, cond_a, event_name)
+            vals_b = store.get_event_values(spec.channel, cond_b, event_name)
+            subjects_a = store.get_event_subject_ids(spec.channel, cond_a, event_name)
+            subjects_b = store.get_event_subject_ids(spec.channel, cond_b, event_name)
+
+            vals_a, vals_b, subjects = _align_by_subject(vals_a, subjects_a, vals_b, subjects_b)
+
+            if not vals_a:
+                return
+
+            arr_a = np.asarray(vals_a)
+            arr_b = np.asarray(vals_b)
+            means = np.mean([arr_a, arr_b], axis=0)
+            diffs = arr_a - arr_b
+
+            bias = float(np.mean(diffs))
+            sd = float(np.std(diffs))
+            loa_upper = bias + self.loa_multiplier * sd
+            loa_lower = bias - self.loa_multiplier * sd
+
+            x_min, x_max = np.min(arr_a), np.max(arr_a)
+            x_pad = (x_max - x_min) * 0.1
+            x_range = [x_min - x_pad, x_max + x_pad]
+
+            for mean_val, diff_val, subj in zip(means, diffs, subjects):
+                color = style.subject_color(subj) if self.show_subjects else "#1f77b4"
+                show_leg = style.should_show_legend("ba_subj", subj) if self.show_subjects else False
+
+                # subject scatter
+                fig.add_trace(go.Scatter(
+                    x = [mean_val], y=[diff_val],
+                    mode = "markers", name=subj,
+                    marker=dict(color=color, size=8,),
+                    legendgroup=subj,
+                    showlegend=show_leg,
+                ), row=row, col=col)
+
+            # bias, loa, and reference lines
+            fig.add_hline(y = bias, line_color="black", line_dash="dash")
+            fig.add_hline(y = loa_upper, line_color="red", line_dash="dash")
+            fig.add_hline(y = loa_lower, line_color="red", line_dash="dash")
+            fig.add_hline(y=0, line_color="grey", line_dash="dash")
 
 #==================================================
 #All future renders be placed right above this line

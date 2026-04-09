@@ -107,3 +107,16 @@ def _compute_bandwidth(values: list[float]) -> float:
     std = np.std(arr, ddof=1)
     spread = min(std, iqr(arr) / 1.34)
     return 0.9 * spread * n ** (-1 / 5)
+
+
+def _align_by_subject(vals_a:list[float], subjects_a:list[str], vals_b:list[float], subjects_b:list[str]):
+    map_b = dict(zip(subjects_b, vals_b))
+    aligned_a, aligned_b, aligned_s = [], [], []
+
+    for val_a, subj in zip(vals_a, subjects_a):
+        if subj in map_b:
+            aligned_a.append(val_a)
+            aligned_b.append(map_b[subj])
+            aligned_s.append(subj)
+
+    return aligned_a, aligned_b, aligned_s
