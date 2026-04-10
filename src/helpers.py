@@ -4,6 +4,8 @@ from typing import NamedTuple
 from enum import Enum
 from dataclasses import dataclass
 from scipy.stats import iqr
+from collections import defaultdict
+import warnings
 
 _NO_CONDITIONS = "__all__"
 
@@ -110,13 +112,35 @@ def _compute_bandwidth(values: list[float]) -> float:
 
 
 def _align_by_subject(vals_a:list[float], subjects_a:list[str], vals_b:list[float], subjects_b:list[str]):
-    map_b = dict(zip(subjects_b, vals_b))
-    aligned_a, aligned_b, aligned_s = [], [], []
 
-    for val_a, subj in zip(vals_a, subjects_a):
-        if subj in map_b:
-            aligned_a.append(val_a)
-            aligned_b.append(map_b[subj])
+    idx_a: dict[str, list[int]] = defaultdict(list)
+    idx_b: dict[str, list[int]] = defaultdict(list)
+
+    for i, s in enumerate(subjects_a):
+        idx_a[s].append(i)
+    for i, s in enumerate(subjects_b):
+        idx_b[s].append(i)
+
+
+    # map_b = dict(zip(subjects_b, vals_b))
+    aligned_a, aligned_b, aligned_s = [], [], []
+    common_subject = [s for s in idx_a if s in idx_b]
+
+    for subj in common_subject:
+        trials_a = idx_a[subj]
+        trials_b = idx_b[subj]
+
+        n_a, n_b = len(trials_a), len(trials_b)
+        if n_a != n_b:
+            warnings.warn(
+                f"Subject {subj!r} has {n_a} trials in condition A "
+                f"and {n_b} in condition B. "
+                f"Using first {min(n_a, n_b)} trials only."
+            )
+
+        for ia, ib in zip(trials_a, trials_b):
+            aligned_a.append(vals_a[ia])
+            aligned_b.append(vals_b[ib])
             aligned_s.append(subj)
 
     return aligned_a, aligned_b, aligned_s
