@@ -4,7 +4,7 @@ import plotly.graph_objs as go
 import numpy as np
 
 from src.style_content import StyleContext
-from src.helpers import compute_ensemble, _compute_bandwidth, _align_by_subject
+from src.helpers import compute_ensemble, _compute_bandwidth, _align_by_subject, resolve_shade
 
 # to test my bland-altman plot
 import pyCompare
@@ -65,12 +65,14 @@ class MeanSDRenderer(Renderer):
         n = len(arrays[0])
         x = np.linspace(0, 100, n)
         mean, upper, lower = compute_ensemble(arrays)
-
+        color = style.condition_color(spec.condition)
+        dash = style.condition_dash(spec.condition)
+        shade_color = resolve_shade(color)
         # Standard deviation ribbon lower limit
         fig.add_trace(go.Scatter(
             x=x,
             y=lower,
-            fillcolor="rgba(0,0,0,0.10)",
+            fillcolor=shade_color,
             line=dict(color="rgba(0,0,0,0)"),
             showlegend=False,
         ), row=row, col=col)
@@ -80,19 +82,18 @@ class MeanSDRenderer(Renderer):
             x=x,
             y=upper,
             fill="tonexty",
-            fillcolor="rgba(0,0,0,0.10)",
+            fillcolor=shade_color,
             line=dict(color="rgba(0,0,0,0)"),
             showlegend=False,
         ), row=row, col=col)
 
         # mean line
-        dash = style.condition_dash(spec.condition)
         show_leg = style.should_show_legend("mean", spec.condition)
         fig.add_trace(go.Scatter(
             x=x, y=mean,
             name=f"Mean_{spec.condition}",
             legendgroup=f"Mean_{spec.condition}",
-            line=dict(color="black", width=3, dash=dash),
+            line=dict(color=color, width=3, dash=dash),
             hovertemplate=f"<b>Mean – {spec.condition}</b><br>%{{x:.1f}}% | %{{y:.2f}}<extra></extra>",
             showlegend=show_leg,
         ), row=row, col=col)

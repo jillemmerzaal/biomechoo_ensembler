@@ -144,3 +144,12 @@ def _align_by_subject(vals_a:list[float], subjects_a:list[str], vals_b:list[floa
             aligned_s.append(subj)
 
     return aligned_a, aligned_b, aligned_s
+
+def resolve_shade(color):
+    h = color.lstrip('#')
+    rgb = tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+    # shade color with opacity
+    opacity = 0.1
+    shade_color = f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {opacity})"
+    return shade_color
