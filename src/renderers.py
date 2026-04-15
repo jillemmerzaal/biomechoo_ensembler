@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from src.data_store import DataStore
 import plotly.graph_objs as go
+import plotly.express as px
 import numpy as np
 
 from src.style_content import StyleContext
@@ -261,6 +262,63 @@ class BlandAltmanRenderer(Renderer):
                           annotation_position = "bottom right")
 
             fig.add_hline(y=0, line_color="grey", line_dash="dash")
+
+
+class ScatterRenderer(Renderer):
+    """
+    """
+
+    def __init__(self, regression_line: bool = False, show_subjects: bool = False):
+        self.regression_line = regression_line
+        self.show_subjects = show_subjects
+
+
+    def render(self, fig, store, style, spec, row, col):
+        if len(spec.all_conditions) != 2:
+            raise ValueError(f"ScatterRenderer requires exactly two conditions, "
+                             f"got {spec.all_conditions}. Use companions= to specify the second")
+
+        cond_a, cond_b = spec.all_conditions
+
+        event_name = spec.events[0]
+
+        vals_a = store.get_event_values(spec.channel, cond_a, event_name)
+        vals_b = store.get_event_values(spec.channel, cond_b, event_name)
+
+        # pyCompare.blandAltman(vals_a, vals_b)
+        subjects_a = store.get_event_subject_ids(spec.channel, cond_a, event_name)
+        subjects_b = store.get_event_subject_ids(spec.channel, cond_b, event_name)
+
+        vals_a, vals_b, subjects = _align_by_subject(vals_a, subjects_a, vals_b, subjects_b)
+
+        if not vals_a:
+            return
+
+        arr_a = np.asarray(vals_a)
+        arr_b = np.asarray(vals_b)
+
+        for a, b, subj in zip(arr_a, arr_b, subjects):
+            color = style.subject_color(subj) if self.show_subjects else "#1f77b4"
+            show_leg = style.should_show_legend("ba_subj", subj) if self.show_subjects else False
+
+            # subject scatter
+            fig.add_trace(go.Scatter(
+                x=[a], y=[b],
+                mode="markers", name=subj,
+                marker=dict(color=color, size=8, ),
+                legendgroup=subj,
+                showlegend=show_leg,
+            ), row=row, col=col)
+
+
+        # Get the OLS regression line
+        if self.regression_line:
+            result = px.scatter(x=arr_a, y=arr_b, trendline="ols")
+            trendline = result.data[1]
+
+            fig.add_trace(go.Scatter(trendline,
+                                     line=dict(color="#333", width=2.5),
+                                     ), row=row, col=col)
 
 #==================================================
 #All future renders be placed right above this line

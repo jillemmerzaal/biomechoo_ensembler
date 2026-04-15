@@ -150,6 +150,6 @@ def resolve_shade(color):
     rgb = tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
     # shade color with opacity
-    opacity = 0.1
+    opacity = 0.2
     shade_color = f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {opacity})"
     return shade_color
