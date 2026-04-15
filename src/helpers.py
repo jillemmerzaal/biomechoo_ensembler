@@ -43,9 +43,9 @@ def extract_subject_id(f, subj_list, str_pattern):
                 return match.group(0)
     if subj_list:
         matched = [subj for subj in subj_list if subj in f]
-        return matched[0] if matched else "Unknown"
+        return matched[0] if matched else None
 
-    return "unknown"
+    return None
 
 
 class ZooEvent(NamedTuple):

@@ -78,12 +78,16 @@ class DataStore:
             if zoo_channel not in data.keys():
                 continue
 
+            subj = extract_subject_id(f, subj_list=self.subj_list, str_pattern=self.str_match)
+            if subj is None:
+                continue
+
             ch_data = data[zoo_channel]
             raw = ch_data.get("line")
             if raw is not None:
                 arr = np.asarray(raw, dtype=float).squeeze()
                 self._lines[key].append(arr)
-                self._subj_index[key].append(extract_subject_id(f, subj_list=self.subj_list, str_pattern=self.str_match))
+                self._subj_index[key].append(subj)
 
 
     def get_event_values(self, channel: str, condition: str, event_name: str) -> list[float]:
@@ -112,10 +116,14 @@ class DataStore:
             if zoo_channel not in data.keys():
                 continue
 
+            subj = extract_subject_id(f, subj_list=self.subj_list, str_pattern=self.str_match)
+            if subj is None:
+                continue
+
             val = extract_events(data[zoo_channel], event_name)
             if val is not None:
                 self._events[event_key].append(val)
-                self._event_subj_index[event_key].append(extract_subject_id(f, self.subj_list, self.str_match))
+                self._event_subj_index[event_key].append(subj)
 
 
     def get_event_subject_ids(self, channel, condition, event_name):
@@ -142,9 +150,12 @@ class DataStore:
             if matched is None:
                 continue
 
-            s =  extract_subject_id(f, subj_list=self.subj_list, str_pattern=self.str_match)
-            if s not in seen:
-                seen.add(s)
-                result.append(s)
+            subj =  extract_subject_id(f, subj_list=self.subj_list, str_pattern=self.str_match)
+            if subj is None:
+                continue
+
+            if subj not in seen:
+                seen.add(subj)
+                result.append(subj)
 
         return result
