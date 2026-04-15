@@ -45,9 +45,9 @@ The ensembler depends on data being processed with the python implementation of 
 
 ## Getting Started
 To get started, the Ensembler needs information on: 
-1. location of the data; 
-2. conditions, channels, and events to plot; 
-3. subject ids; 
+1. location of the data ``str``
+2. conditions: ```list[str]```, channels: ```list[str]```, and events ```list[str]``` to plot; 
+3. subject ids: ```str_match=[r"\b\d{3}[A-Z]{2}\b", r"\b\d{3}[A-Z]{3}\b"]``` OR ```subj_list = list[str]```
 4. number of columns and rows.
 
 This information is then used throughout the different assembler classes to extract the relevant data and setup the correct color schemes to plot. 
@@ -95,6 +95,16 @@ spec = ConditionSpec(
 )
 ```
 
+**Initializing Ensembler**
+```python
+ens = Ensembler(in_folder=fld,  channels=channels,
+                n_rows=rows,  n_cols=cols,
+                str_match=str_match,
+                condition_spec=spec,
+                events=events)
+```
+
+> See the Jupyter notebook for examples to use the full code. 
 ## Plot options
 
 The following renderers are provided at this moment:
