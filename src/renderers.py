@@ -252,16 +252,16 @@ class BlandAltmanRenderer(Renderer):
             # bias, loa, and reference lines
             fig.add_hline(y = bias, line_color="black", line_dash="dash",
                           annotation_text=f"Bias: {bias:.2f}",
-                          annotation_position="bottom right")
+                          annotation_position="bottom right", row=row, col=col)
 
             fig.add_hline(y = loa_upper, line_color="red", line_dash="dash",
                           annotation_text = f"LoA: {loa_upper:.2f}",
-                          annotation_position = "top right")
+                          annotation_position = "top right", row=row, col=col)
             fig.add_hline(y = loa_lower, line_color="red", line_dash="dash",
                           annotation_text = f"LoA: {loa_lower:.2f}",
-                          annotation_position = "bottom right")
+                          annotation_position = "bottom right", row=row, col=col)
 
-            fig.add_hline(y=0, line_color="grey", line_dash="dash")
+            fig.add_hline(y=0, line_color="grey", line_dash="dash", row=row, col=col)
 
 
 class ScatterRenderer(Renderer):
