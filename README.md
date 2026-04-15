@@ -104,7 +104,7 @@ ens = Ensembler(in_folder=fld,  channels=channels,
                 events=events)
 ```
 
-> See the Jupyter notebook for examples to use the full code. 
+> See the Jupyter notebook or the .pfd for examples to use the full code. 
 ## Plot options
 
 The following renderers are provided at this moment:
