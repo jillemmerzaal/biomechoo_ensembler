@@ -24,7 +24,7 @@ str_match = [r"\b\d{3}[A-Z]{2}\b", r"\b\d{3}[A-Z]{3}\b"]
 # subj_list = ["001CEJ"]
 events = ["max"]
 rows = 1
-cols = 3
+cols = 1
 
 # lines_and_mean = CompositeRenderer(IndividualLinesRenderer(), MeanSDRenderer())
 # lines_and_events = CompositeRenderer(IndividualLinesRenderer(), EventOverlayRenderer())
@@ -57,10 +57,12 @@ cols = 3
 fig = (
     Ensembler(in_folder=fld, channels=channels, n_rows= rows, n_cols =cols, str_match=str_match, condition_spec=spec)
     .add_subplot(PlotSpec(channel='RS_abduction',
-                          condition="vicon", companions=["areve"],
-                          row=1, col=1, renderer=BlandAltmanRenderer(use_events=True), events=events))
+                          condition="areve", companions=["pig"],
+                          row=1, col=1, renderer=BlandAltmanRenderer(use_events=True, show_subjects=True), events=events))
     .build(title="Max Right Shoulder Abduction")
 )
+
+fig.show()
 
 # # Set up variables
 # fld = "/Users/Werk/Documents/Postdoc-McGill/breast-reduction/data/stats"

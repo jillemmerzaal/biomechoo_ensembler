@@ -6,6 +6,9 @@ import numpy as np
 from src.style_content import StyleContext
 from src.helpers import compute_ensemble, _compute_bandwidth, _align_by_subject
 
+# to test my bland-altman plot
+import pyCompare
+
 
 #### Plot options to add
 # Scatter plot/correlation plots --> regression line option?
@@ -207,6 +210,8 @@ class BlandAltmanRenderer(Renderer):
 
             vals_a = store.get_event_values(spec.channel, cond_a, event_name)
             vals_b = store.get_event_values(spec.channel, cond_b, event_name)
+
+            # pyCompare.blandAltman(vals_a, vals_b)
             subjects_a = store.get_event_subject_ids(spec.channel, cond_a, event_name)
             subjects_b = store.get_event_subject_ids(spec.channel, cond_b, event_name)
 
@@ -243,9 +248,17 @@ class BlandAltmanRenderer(Renderer):
                 ), row=row, col=col)
 
             # bias, loa, and reference lines
-            fig.add_hline(y = bias, line_color="black", line_dash="dash")
-            fig.add_hline(y = loa_upper, line_color="red", line_dash="dash")
-            fig.add_hline(y = loa_lower, line_color="red", line_dash="dash")
+            fig.add_hline(y = bias, line_color="black", line_dash="dash",
+                          annotation_text=f"Bias: {bias:.2f}",
+                          annotation_position="bottom right")
+
+            fig.add_hline(y = loa_upper, line_color="red", line_dash="dash",
+                          annotation_text = f"LoA: {loa_upper:.2f}",
+                          annotation_position = "top right")
+            fig.add_hline(y = loa_lower, line_color="red", line_dash="dash",
+                          annotation_text = f"LoA: {loa_lower:.2f}",
+                          annotation_position = "bottom right")
+
             fig.add_hline(y=0, line_color="grey", line_dash="dash")
 
 #==================================================
