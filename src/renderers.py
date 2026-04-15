@@ -5,7 +5,7 @@ import plotly.express as px
 import numpy as np
 
 from src.style_content import StyleContext
-from src.helpers import compute_ensemble, _compute_bandwidth, _align_by_subject, resolve_shade
+from src.helpers import compute_ensemble, _compute_bandwidth, align_by_subject, resolve_shade
 
 # to test my bland-altman plot
 import pyCompare
@@ -217,7 +217,7 @@ class BlandAltmanRenderer(Renderer):
             subjects_a = store.get_event_subject_ids(spec.channel, cond_a, event_name)
             subjects_b = store.get_event_subject_ids(spec.channel, cond_b, event_name)
 
-            vals_a, vals_b, subjects = _align_by_subject(vals_a, subjects_a, vals_b, subjects_b)
+            vals_a, vals_b, subjects = align_by_subject(vals_a, subjects_a, vals_b, subjects_b)
 
             if not vals_a:
                 return
@@ -268,9 +268,10 @@ class ScatterRenderer(Renderer):
     """
     """
 
-    def __init__(self, regression_line: bool = False, show_subjects: bool = False):
+    def __init__(self, regression_line: bool = False, show_subjects: bool = False, identity_line: bool = True,):
         self.regression_line = regression_line
         self.show_subjects = show_subjects
+        self.identity_line = identity_line
 
 
     def render(self, fig, store, style, spec, row, col):
@@ -279,6 +280,9 @@ class ScatterRenderer(Renderer):
                              f"got {spec.all_conditions}. Use companions= to specify the second")
 
         cond_a, cond_b = spec.all_conditions
+
+        if not spec.events:
+            raise ValueError(f"ScatterRenderer requires events to be specified ")
 
         event_name = spec.events[0]
 
@@ -289,7 +293,7 @@ class ScatterRenderer(Renderer):
         subjects_a = store.get_event_subject_ids(spec.channel, cond_a, event_name)
         subjects_b = store.get_event_subject_ids(spec.channel, cond_b, event_name)
 
-        vals_a, vals_b, subjects = _align_by_subject(vals_a, subjects_a, vals_b, subjects_b)
+        vals_a, vals_b, subjects = align_by_subject(vals_a, subjects_a, vals_b, subjects_b)
 
         if not vals_a:
             return
@@ -298,8 +302,8 @@ class ScatterRenderer(Renderer):
         arr_b = np.asarray(vals_b)
 
         for a, b, subj in zip(arr_a, arr_b, subjects):
-            color = style.subject_color(subj) if self.show_subjects else "#1f77b4"
-            show_leg = style.should_show_legend("ba_subj", subj) if self.show_subjects else False
+            color = style.subject_color(subj) if self.show_subjects else style.condition_color(cond_a)
+            show_leg = style.should_show_legend("scatter_subj", subj) if self.show_subjects else False
 
             # subject scatter
             fig.add_trace(go.Scatter(
@@ -310,15 +314,32 @@ class ScatterRenderer(Renderer):
                 showlegend=show_leg,
             ), row=row, col=col)
 
+        # Plot the identity line
+        if self.identity_line:
+            all_vals = np.concatenate([arr_a, arr_b])
+            lim = [float(all_vals.min()), float(all_vals.max())]
+            fig.add_trace(go.Scatter(
+                x=lim, y=lim,
+                mode="lines", name="Identity (y=x)",
+                line=dict(color="grey", width=1.5, dash="dot"),
+                showlegend=True,
+            ), row=row, col=col)
+
 
         # Get the OLS regression line
         if self.regression_line:
-            result = px.scatter(x=arr_a, y=arr_b, trendline="ols")
-            trendline = result.data[1]
+            coeffs = np.polyfit(arr_a, arr_b, 1)
+            x_line = np.linspace(arr_a.min(), arr_a.max(), 100)
+            y_line = np.polyval(coeffs, x_line)
+            r_sq = np.corrcoef(arr_a, arr_b)[0, 1] ** 2
 
-            fig.add_trace(go.Scatter(trendline,
-                                     line=dict(color="#333", width=2.5),
-                                     ), row=row, col=col)
+            fig.add_trace(go.Scatter(
+                x=x_line, y=y_line,
+                mode="lines", name=f"OLS (R²={r_sq:.2f})",
+                line=dict(color="#333", width=2.5),
+                showlegend=True,
+            ), row=row, col=col)
+
 
 #==================================================
 #All future renders be placed right above this line

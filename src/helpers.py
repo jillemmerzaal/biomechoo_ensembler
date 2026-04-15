@@ -111,7 +111,7 @@ def _compute_bandwidth(values: list[float]) -> float:
     return 0.9 * spread * n ** (-1 / 5)
 
 
-def _align_by_subject(vals_a:list[float], subjects_a:list[str], vals_b:list[float], subjects_b:list[str]):
+def align_by_subject(vals_a:list[float], subjects_a:list[str], vals_b:list[float], subjects_b:list[str]):
 
     idx_a: dict[str, list[int]] = defaultdict(list)
     idx_b: dict[str, list[int]] = defaultdict(list)
