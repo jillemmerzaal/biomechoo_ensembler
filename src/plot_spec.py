@@ -20,7 +20,7 @@ class PlotSpec:
 
     def __post_init__(self):
         if not self.title:
-            self.title = f"{self.channel} - {self.condition}"
+            self.title = f"{self.channel}"
 
     @property
     def all_conditions(self):
