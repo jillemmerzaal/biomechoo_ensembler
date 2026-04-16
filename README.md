@@ -104,7 +104,7 @@ ens = Ensembler(in_folder=fld,  channels=channels,
                 events=events)
 ```
 
-> See the Jupyter notebook or the .pfd for examples to use the full code. 
+> See the Jupyter notebook or the .pdf for examples to use the full code. 
 ## Plot options
 
 The following renderers are provided at this moment:
@@ -128,7 +128,7 @@ condition name, row numer, column number and the renderer.
 
 ```python
 .add_subplot(PlotSpec(channel = 'RS_abduction', 
-                      condition= "vicon", 
+                      condition= "vicon", companions=["areve"],
                       row=1, col=1, 
                       renderer=IndividualLinesRenderer()))
 ```
