@@ -54,10 +54,10 @@ class Ensembler:
             fig.update_yaxes(title_text=spec.y_label, row=spec.row, col=spec.col)
 
         fig.update_layout(
-            title=title,
+            title=dict(text=title),
             height=height * self.n_rows,
             width=width * self.n_cols,
             template="plotly_white",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            legend=dict(orientation="h", yanchor="top", y=-0.5, xanchor="right", x=1),
         )
         return fig
