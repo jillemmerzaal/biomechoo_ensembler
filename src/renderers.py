@@ -36,68 +36,70 @@ class Renderer(ABC):
 
 class IndividualLinesRenderer(Renderer):
     def render(self, fig, store, style, spec, row, col):
-        arrays = store.get_lines(spec.channel, spec.condition)
-        subjects = store.get_subject_ids(spec.channel, spec.condition)
-        x_norm = np.linspace(0, 100, max((len(a) for a in arrays), default=1))
+        for condition in spec.all_conditions:
+            arrays = store.get_lines(spec.channel, condition)
+            subjects = store.get_subject_ids(spec.channel, condition)
+            x_norm = np.linspace(0, 100, max((len(a) for a in arrays), default=1))
 
-        for arr, subj in zip(arrays, subjects):
-            color = style.subject_color(subj)
-            dash = style.condition_dash(spec.condition)
-            show_leg = style.should_show_legend("subj", subj)
+            for arr, subj in zip(arrays, subjects):
+                color = style.subject_color(subj)
+                dash = style.condition_dash(condition)
+                show_leg = style.should_show_legend("subj", subj)
 
-            fig.add_trace(go.Scatter(
-                x=x_norm, y=arr,
-                mode="lines",
-                name=subj,
-                legendgroup=subj,
-                line=dict(color=color, dash=dash, width=1.2),
-                opacity=0.45,
-                showlegend=show_leg,
-                hovertemplate=f"<b>{subj}</b><br>%{{x:.1f}}% | %{{y:.2f}}<extra></extra>",
-            ), row=row, col=col)
+                fig.add_trace(go.Scatter(
+                    x=x_norm, y=arr,
+                    mode="lines",
+                    name=subj,
+                    legendgroup=subj,
+                    line=dict(color=color, dash=dash, width=1.2),
+                    opacity=0.45,
+                    showlegend=show_leg,
+                    hovertemplate=f"<b>{subj}</b><br>%{{x:.1f}}% | %{{y:.2f}}<extra></extra>",
+                ), row=row, col=col)
 
 
 class MeanSDRenderer(Renderer):
     def render(self, fig, store, style, spec, row, col):
-        arrays = store.get_lines(spec.channel, spec.condition)
-        if not arrays:
-            return
+        for condition in spec.all_conditions:
+            arrays = store.get_lines(spec.channel, condition)
+            if not arrays:
+                return
 
-        n = len(arrays[0])
-        x = np.linspace(0, 100, n)
-        mean, upper, lower = compute_ensemble(arrays)
-        color = style.condition_color(spec.condition)
-        dash = style.condition_dash(spec.condition)
-        shade_color = resolve_shade(color)
-        # Standard deviation ribbon lower limit
-        fig.add_trace(go.Scatter(
-            x=x,
-            y=lower,
-            fillcolor=shade_color,
-            line=dict(color="rgba(0,0,0,0)"),
-            showlegend=False,
-        ), row=row, col=col)
+            n = len(arrays[0])
+            x = np.linspace(0, 100, n)
+            mean, upper, lower = compute_ensemble(arrays)
+            color = style.condition_color(condition)
+            dash = style.condition_dash(condition)
+            shade_color = resolve_shade(color)
+            # Standard deviation ribbon lower limit
+            fig.add_trace(go.Scatter(
+                x=x,
+                y=lower,
+                fillcolor=shade_color,
+                line=dict(color="rgba(0,0,0,0)"),
+                showlegend=False,
+            ), row=row, col=col)
 
-        # Standard deviation ribbon upper limit
-        fig.add_trace(go.Scatter(
-            x=x,
-            y=upper,
-            fill="tonexty",
-            fillcolor=shade_color,
-            line=dict(color="rgba(0,0,0,0)"),
-            showlegend=False,
-        ), row=row, col=col)
+            # Standard deviation ribbon upper limit
+            fig.add_trace(go.Scatter(
+                x=x,
+                y=upper,
+                fill="tonexty",
+                fillcolor=shade_color,
+                line=dict(color="rgba(0,0,0,0)"),
+                showlegend=False,
+            ), row=row, col=col)
 
-        # mean line
-        show_leg = style.should_show_legend("mean", spec.condition)
-        fig.add_trace(go.Scatter(
-            x=x, y=mean,
-            name=f"Mean_{spec.condition}",
-            legendgroup=f"Mean_{spec.condition}",
-            line=dict(color=color, width=3, dash=dash),
-            hovertemplate=f"<b>Mean – {spec.condition}</b><br>%{{x:.1f}}% | %{{y:.2f}}<extra></extra>",
-            showlegend=show_leg,
-        ), row=row, col=col)
+            # mean line
+            show_leg = style.should_show_legend("mean", condition)
+            fig.add_trace(go.Scatter(
+                x=x, y=mean,
+                name=f"Mean_{condition}",
+                legendgroup=f"Mean_{condition}",
+                line=dict(color=color, width=3, dash=dash),
+                hovertemplate=f"<b>Mean – {condition}</b><br>%{{x:.1f}}% | %{{y:.2f}}<extra></extra>",
+                showlegend=show_leg,
+            ), row=row, col=col)
 
 
 class EventOverlayRenderer(Renderer):
@@ -105,25 +107,25 @@ class EventOverlayRenderer(Renderer):
         if not spec.events:
             return
 
-        # subjects = store.get_subject_ids(channel, condition)
         for event_name in spec.events:
-            evs = store.get_events(spec.channel, spec.condition, event_name)  # list[ZooEvent]
-            subjects = store.get_event_subject_ids(spec.channel, spec.condition, event_name)
-            for ev, subj in zip(evs, subjects):
-                color = style.subject_color(subj)
-                show_leg = style.should_show_legend("event", f"{subj}_{event_name}")
-                fig.add_trace(go.Scatter(
-                    x=[ev.x], y=[ev.y],
-                    mode="markers",
-                    name=f"{subj} – {event_name}",
-                    legendgroup=subj,
-                    marker=dict(color=color, size=8),
-                    showlegend=show_leg,
-                    hovertemplate=(
-                        f"<b>{subj} – {event_name}</b><br>"
-                        f"x: %{{x:.1f}} | y: %{{y:.2f}}<extra></extra>"
-                    ),
-                ), row=row, col=col)
+            for condition in spec.all_conditions:
+                evs = store.get_events(spec.channel, condition, event_name)  # list[ZooEvent]
+                subjects = store.get_event_subject_ids(spec.channel, condition, event_name)
+                for ev, subj in zip(evs, subjects):
+                    color = style.subject_color(subj)
+                    show_leg = style.should_show_legend("event", f"{subj}_{event_name}")
+                    fig.add_trace(go.Scatter(
+                        x=[ev.x], y=[ev.y],
+                        mode="markers",
+                        name=f"{subj} – {event_name}",
+                        legendgroup=subj,
+                        marker=dict(color=color, size=8),
+                        showlegend=show_leg,
+                        hovertemplate=(
+                            f"<b>{subj} – {event_name}</b><br>"
+                            f"x: %{{x:.1f}} | y: %{{y:.2f}}<extra></extra>"
+                        ),
+                    ), row=row, col=col)
 
 
 class ViolinRenderer(Renderer):
