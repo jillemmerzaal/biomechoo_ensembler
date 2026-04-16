@@ -24,6 +24,7 @@ class Ensembler:
         self.style = StyleContext(self.store.subjects, self.store.conditions)
         self.n_rows = n_rows
         self.n_cols = n_cols
+        self.channels = channels
         self.specs: list[PlotSpec] = []
 
     def add_subplot(self, spec: PlotSpec):
