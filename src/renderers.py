@@ -7,10 +7,6 @@ import numpy as np
 from src.style_content import StyleContext
 from src.helpers import compute_ensemble, _compute_bandwidth, align_by_subject, resolve_shade
 
-# to test my bland-altman plot
-import pyCompare
-
-
 #### Plot options to add
 # Scatter plot/correlation plots --> regression line option?
 # Violinplots
@@ -342,6 +338,49 @@ class ScatterRenderer(Renderer):
                 showlegend=True,
             ), row=row, col=col)
 
+
+
+class BoxRenderer(Renderer):
+    def __init__(self, show_points: bool = True, show_nodge:bool = False):
+        self.show_points = show_points
+        self.show_nodge = show_nodge
+
+    def render(self, fig, store, style, spec, row, col):
+        if not spec.events:
+            return
+
+        for event_name in spec.events:
+            for condition in spec.all_conditions:
+                values = store.get_event_values(spec.channel,
+                                                condition, event_name)
+                subjects = store.get_event_subject_ids(spec.channel,
+                                                       condition, event_name)
+
+                if not values:
+                    continue
+
+                if spec.group_by and spec.group_map:
+                    groups = [spec.group_map.get(s, "Unknown") for s in subjects]
+                else:
+                    groups = [condition] * len(values)
+
+                unique_groups = dict.fromkeys(groups)
+                for grp in unique_groups:
+                    grp_values = [v for v, g in zip(values, groups) if g == grp]
+                    color = style.condition_color(condition)
+                    label = f"{condition} - {event_name} - {grp}" if spec.group_by else f"{condition} - {event_name}"
+                    show_leg = style.should_show_legend("box", grp)
+
+                    # add the plot
+                    fig.add_trace(go.Box(x = [f"{grp}"] * len(grp_values),
+                                         y = grp_values,
+                                         name = grp, legendgroup = label,
+                                         marker_color = color,
+                                         line_color = color,
+                                         box_points = "all" if self.show_points else False,
+                                         nodged = True if self.show_nodge else False,
+                                         showlegend=show_leg,
+                                         notched=True, ))
 
 #==================================================
 #All future renders be placed right above this line
