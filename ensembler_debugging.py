@@ -1,13 +1,13 @@
 import os
 # import statements
-from ensembler import Ensembler
-from plot_spec import PlotSpec
+from src.ensembler import Ensembler
+from src.plot_spec import PlotSpec
 # line plot and event renderers
-from renderers import IndividualLinesRenderer, MeanSDRenderer, EventOverlayRenderer
-from renderers import ViolinRenderer, BlandAltmanRenderer, ScatterRenderer
+from src.renderers import IndividualLinesRenderer, MeanSDRenderer, EventOverlayRenderer
+from src.renderers import ViolinRenderer, BlandAltmanRenderer, ScatterRenderer
 # combiner renderers
-from renderers import CompositeRenderer
-from helpers import ConditionSpec, ConditionSource
+from src.renderers import CompositeRenderer
+from src.helpers import ConditionSpec, ConditionSource
 
 
 #%%
