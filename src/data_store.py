@@ -1,11 +1,11 @@
 import numpy as np
-import re
 import pandas as pd
 
 from biomechzoo.utils.engine import engine
 from biomechzoo.utils.zload import zload
+from biomechzoo.ensembler.helpers import (match_condition, extract_subject_id, extract_events, ZooEvent,
+                                          ConditionSource, ConditionSpec, align_by_subject)
 
-from src.helpers import match_condition, extract_subject_id, extract_events, ZooEvent, ConditionSource, ConditionSpec
 
 
 class DataStore:
@@ -15,7 +15,7 @@ class DataStore:
     def __init__(self, fld, condition_spec: ConditionSpec | None=None, events=None, subj_list=None, str_match=None):
         self.fld = fld
         self.condition_spec = condition_spec or ConditionSpec(
-            source=ConditionSource.FOLDER, conditions=[]
+            source=ConditionSource.BETWEEN, conditions=[]
         )
         self.conditions = self.condition_spec.conditions
         self.subj_list = subj_list
@@ -55,8 +55,6 @@ class DataStore:
         self._ensure_extracted(channel, condition)
         return self._subj_index.get((channel, condition), [])
 
-
-
     def _extract(self, channel, condition):
         """Parse all zoo files for on (channel, condition) pair."""
         key = (channel,condition)
@@ -68,7 +66,7 @@ class DataStore:
         for f in self._fl:
             data = zload(f)
 
-            if self.condition_spec.source == ConditionSource.FOLDER:
+            if self.condition_spec.source == ConditionSource.BETWEEN:
                 matched = match_condition(f, self.conditions)
                 # fall save: condition needs to be all or match the condition currently in favour
                 if matched != "__all__":
@@ -107,7 +105,7 @@ class DataStore:
             data = zload(f)
 
             # Condition matching - branch on source type
-            if self.condition_spec.source == ConditionSource.FOLDER:
+            if self.condition_spec.source == ConditionSource.BETWEEN:
                 matched = match_condition(f, self.conditions)
                 # fall save: condition needs to be all or match the condition currently in favour
                 if matched != "__all__":
@@ -136,20 +134,29 @@ class DataStore:
     def _resolve_zoo_channel(self, channel, condition):
         """
         Returns the actual key to look up in the zoo dict.
-        - FOLDER source  → channel name is used as-is
-        - CHANNEL source → look up from channel_map
+        - BETWEEN source  → channel name is used as-is
+        - WITHIN source → look up from channel_map
         """
-        if self.condition_spec.source == ConditionSource.CHANNEL:
-            return self.condition_spec.channel_map.get(condition, channel)
+        if self.condition_spec.source == ConditionSource.WITHIN:
+            cond_map = self.condition_spec.channel_map.get(condition, {})
+            resolved = cond_map.get(channel)
+            if resolved is None:
+                raise KeyError(f"No channel_map entry for base channel {channel!r} "
+                               f"under condition {condition!r}. "
+                               f"Available: {list(cond_map.keys())}")
+            return resolved
         return channel
 
 
     def _resolve_subjects(self):
         seen, result = set(), []
         for f in self._fl:
-            matched = match_condition(f, self.conditions)
-            if matched is None:
-                continue
+
+            if self.condition_spec.source == ConditionSource.BETWEEN:
+                matched = match_condition(f, self.conditions)
+                if matched != "__all__":
+                    if matched not in self.conditions:
+                        continue
 
             subj =  extract_subject_id(f, subj_list=self.subj_list, str_pattern=self.str_match)
             if subj is None:
@@ -160,6 +167,50 @@ class DataStore:
                 result.append(subj)
 
         return result
+
+
+    def get_paired(self, channel: str, cond_a: str, cond_b: str,
+                   event_name: str | None = None, line_scalar: str | None = "mean") -> tuple[list[float], list[float], list[str]]:
+        """
+        Returns aligned (vals_a, vals_b, subjects) for inter condition comparisons. Used by BlandAltmanRenderer and ScatterRenderer.
+        """
+
+        if event_name is not None:
+            vals_a = self.get_event_values(channel, cond_a, event_name)
+            vals_b = self.get_event_values(channel, cond_b, event_name)
+            subjs_a = self.get_event_subject_ids(channel, cond_a, event_name)
+            subjs_b = self.get_event_subject_ids(channel, cond_b, event_name)
+        else:
+            vals_a, subjs_a = self._scalars_from_lines(channel, cond_a, line_scalar)
+            vals_b, subjs_b = self._scalars_from_lines(channel, cond_b, line_scalar)
+
+        return align_by_subject(vals_a, subjs_a, vals_b, subjs_b)
+
+    def get_intra_channel(self, channel_a: str, channel_b: str, condition: str,
+                          event_name: str | None = None, line_scalar: str | None="mean")-> tuple[list[float], list[float], list[str]]:
+        """Returns aligned (vals_a,  vals_b, subjects) for intra-file channel comparison.
+        Used by BlandAltmanRenderer and ScatterRenderer."""
+
+        if event_name is not None:
+            vals_a = self.get_event_values(channel_a, condition, event_name)
+            vals_b = self.get_event_values(channel_b, condition, event_name)
+            subjs_a = self.get_event_subject_ids(channel_a, condition, event_name)
+            subjs_b = self.get_event_subject_ids(channel_b, condition, event_name)
+        else:
+            vals_a, subjs_a = self._scalars_from_lines(channel_a, condition, line_scalar)
+            vals_b, subjs_b = self._scalars_from_lines(channel_b, condition, line_scalar)
+
+        return align_by_subject(vals_a, subjs_a, vals_b, subjs_b)
+
+
+    def _scalars_from_lines(self, channel: str, condition: str, line_scaler: str ="mean") -> tuple[list[float], list[str]]:
+        arrays = self.get_lines(channel, condition)
+        subjects = self.get_subject_ids(channel, condition)
+        scalars = []
+        for arr in arrays:
+            a = np.asarray(arr, dtype=float)
+            scalars.append({"mean": float(np.mean(a)), "max": float(np.max(a)), "min": float(np.min(a))}[line_scaler])
+        return scalars, subjects
 
     def to_events_dataframe(self, channels : list[str], event_names : list[str]):
         """
@@ -181,13 +232,13 @@ class DataStore:
 
         return pd.DataFrame(row)
 
+
     def to_lines_dataframe(self, channels : list[str]):
         """
         Returns a long-format DataFrame of all line data.
-        All lines need to be time normalized
+        All lines need to be time-normalized
         """
 
-        from src.helpers import compute_ensemble
         rows = []
         n_frames = 100
         for channel in channels:

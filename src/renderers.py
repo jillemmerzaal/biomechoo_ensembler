@@ -1,11 +1,17 @@
 from abc import ABC, abstractmethod
-from src.data_store import DataStore
 import plotly.graph_objs as go
 import plotly.express as px
 import numpy as np
+# to test my bland-altman plot
+import pyCompare
+from biomechzoo.ensembler.data_store import DataStore
 
-from src.style_content import StyleContext
-from src.helpers import compute_ensemble, _compute_bandwidth, align_by_subject, resolve_shade
+
+from biomechzoo.ensembler.style_content import StyleContext
+from biomechzoo.ensembler.helpers import compute_ensemble, _compute_bandwidth, align_by_subject, resolve_shade
+
+
+
 
 #### Plot options to add
 # Scatter plot/correlation plots --> regression line option?
@@ -186,80 +192,81 @@ class BlandAltmanRenderer(Renderer):
     - event data (Uses event scaler directly, e.g. "max")
     """
 
-    def __init__(self, use_events: bool = False, show_subjects: bool = False, loa_multiplier: float = 1.96, line_scaler : str = "mean"):
+    def __init__(self, use_lines: bool = False, show_subjects: bool = False, loa_multiplier: float = 1.96, line_scalar : str = "mean"):
 
-        if line_scaler not in ("mean", "max", "min", "median"):
+        if line_scalar not in ("mean", "max", "min", "median"):
             raise ValueError("line_scaler must be one of 'mean', 'max', 'min', or 'median'")
-        self.use_events = use_events
+        self.use_lines = use_lines
         self.show_subjects = show_subjects
         self.loa_multiplier = loa_multiplier
-        self.line_scaler = line_scaler
+        self.line_scalar = line_scalar
 
 
     def render(self, fig, store, style, spec, row, col):
-        if len(spec.all_conditions) != 2:
-            raise ValueError(f"BlandAltmanRenderer requires exactly two conditions, "
-                             f"got {spec.all_conditions}. Use companions= to specify the second")
+        if spec.companion_channel is not None:
+            vals_a, vals_b, subjects = store.get_intra_channel(
+                channel_a=spec.channel,
+                channel_b=spec.companion_channel,
+                condition=spec.conition,
+                event_name=spec.events[0],
+                line_scalar=self.line_scalar
+            )
+        else:
+            if len(spec.all_conditions) != 2:
+                raise ValueError(f"BlandAltmanRenderer requires exactly two conditions, "
+                                 f"got {spec.all_conditions}. Use companions= to specify the second")
+            cond_a, cond_b = spec.all_conditions
+            vals_a, vals_b, subjects = store.get_paired(
+                channel = spec.channel,
+                cond_a = cond_a,
+                cond_b = cond_b,
+                event_name = spec.events[0],
+                line_scaler = self.line_scaler
+            )
 
-        cond_a, cond_b = spec.all_conditions
+        if not vals_a:
+            return
 
-        if self.use_events:
-            if not spec.events:
-                raise ValueError(f"BlandAltmanRenderer with use_events=True requires events to be specified ")
-            event_name = spec.events[0]
+        arr_a = np.asarray(vals_a)
+        arr_b = np.asarray(vals_b)
+        means = np.mean([arr_a, arr_b], axis=0)
+        diffs = arr_a - arr_b
 
-            vals_a = store.get_event_values(spec.channel, cond_a, event_name)
-            vals_b = store.get_event_values(spec.channel, cond_b, event_name)
+        bias = float(np.mean(diffs))
+        sd = float(np.std(diffs))
+        loa_upper = bias + self.loa_multiplier * sd
+        loa_lower = bias - self.loa_multiplier * sd
 
-            # pyCompare.blandAltman(vals_a, vals_b)
-            subjects_a = store.get_event_subject_ids(spec.channel, cond_a, event_name)
-            subjects_b = store.get_event_subject_ids(spec.channel, cond_b, event_name)
+        x_min, x_max = np.min(arr_a), np.max(arr_a)
+        x_pad = (x_max - x_min) * 0.1
+        x_range = [x_min - x_pad, x_max + x_pad]
 
-            vals_a, vals_b, subjects = align_by_subject(vals_a, subjects_a, vals_b, subjects_b)
+        for mean_val, diff_val, subj in zip(means, diffs, subjects):
+            color = style.subject_color(subj) if self.show_subjects else "#1f77b4"
+            show_leg = style.should_show_legend("ba_subj", subj) if self.show_subjects else False
 
-            if not vals_a:
-                return
+            # subject scatter
+            fig.add_trace(go.Scatter(
+                x = [mean_val], y=[diff_val],
+                mode = "markers", name=subj,
+                marker=dict(color=color, size=8,),
+                legendgroup=subj,
+                showlegend=show_leg,
+            ), row=row, col=col)
 
-            arr_a = np.asarray(vals_a)
-            arr_b = np.asarray(vals_b)
-            means = np.mean([arr_a, arr_b], axis=0)
-            diffs = arr_a - arr_b
+        # bias, loa, and reference lines
+        fig.add_hline(y = bias, line_color="black", line_dash="dash",
+                      annotation_text=f"Bias: {bias:.2f}",
+                      annotation_position="bottom right", row=row, col=col)
 
-            bias = float(np.mean(diffs))
-            sd = float(np.std(diffs))
-            loa_upper = bias + self.loa_multiplier * sd
-            loa_lower = bias - self.loa_multiplier * sd
+        fig.add_hline(y = loa_upper, line_color="red", line_dash="dash",
+                      annotation_text = f"LoA: {loa_upper:.2f}",
+                      annotation_position = "top right", row=row, col=col)
+        fig.add_hline(y = loa_lower, line_color="red", line_dash="dash",
+                      annotation_text = f"LoA: {loa_lower:.2f}",
+                      annotation_position = "bottom right", row=row, col=col)
 
-            x_min, x_max = np.min(arr_a), np.max(arr_a)
-            x_pad = (x_max - x_min) * 0.1
-            x_range = [x_min - x_pad, x_max + x_pad]
-
-            for mean_val, diff_val, subj in zip(means, diffs, subjects):
-                color = style.subject_color(subj) if self.show_subjects else "#1f77b4"
-                show_leg = style.should_show_legend("ba_subj", subj) if self.show_subjects else False
-
-                # subject scatter
-                fig.add_trace(go.Scatter(
-                    x = [mean_val], y=[diff_val],
-                    mode = "markers", name=subj,
-                    marker=dict(color=color, size=8,),
-                    legendgroup=subj,
-                    showlegend=show_leg,
-                ), row=row, col=col)
-
-            # bias, loa, and reference lines
-            fig.add_hline(y = bias, line_color="black", line_dash="dash",
-                          annotation_text=f"Bias: {bias:.2f}",
-                          annotation_position="bottom right", row=row, col=col)
-
-            fig.add_hline(y = loa_upper, line_color="red", line_dash="dash",
-                          annotation_text = f"LoA: {loa_upper:.2f}",
-                          annotation_position = "top right", row=row, col=col)
-            fig.add_hline(y = loa_lower, line_color="red", line_dash="dash",
-                          annotation_text = f"LoA: {loa_lower:.2f}",
-                          annotation_position = "bottom right", row=row, col=col)
-
-            fig.add_hline(y=0, line_color="grey", line_dash="dash", row=row, col=col)
+        fig.add_hline(y=0, line_color="grey", line_dash="dash", row=row, col=col)
 
 
 class ScatterRenderer(Renderer):
@@ -273,25 +280,29 @@ class ScatterRenderer(Renderer):
 
 
     def render(self, fig, store, style, spec, row, col):
-        if len(spec.all_conditions) != 2:
-            raise ValueError(f"ScatterRenderer requires exactly two conditions, "
-                             f"got {spec.all_conditions}. Use companions= to specify the second")
-
-        cond_a, cond_b = spec.all_conditions
-
-        if not spec.events:
-            raise ValueError(f"ScatterRenderer requires events to be specified ")
-
         event_name = spec.events[0]
 
-        vals_a = store.get_event_values(spec.channel, cond_a, event_name)
-        vals_b = store.get_event_values(spec.channel, cond_b, event_name)
+        if spec.companion_channel is not None:
+            vals_a, vals_b, subjects = store.get_intra_channel(
+                channel_a = spec.channel,
+                channel_b = spec.companion_channel,
+                condition = spec.condition,
+                event_name= event_name,
+                line_scalar= spec.line_scalar
+            )
 
-        # pyCompare.blandAltman(vals_a, vals_b)
-        subjects_a = store.get_event_subject_ids(spec.channel, cond_a, event_name)
-        subjects_b = store.get_event_subject_ids(spec.channel, cond_b, event_name)
-
-        vals_a, vals_b, subjects = align_by_subject(vals_a, subjects_a, vals_b, subjects_b)
+        else:
+            if not spec.events:
+                raise ValueError(f"ScatterRenderer requires 2 events to be specified, "
+                                 f"got {spec.all_conditions}. Use companions= to specify the second")
+            cond_a, cond_b = spec.all_conditions
+            vals_a, vals_b, subjects = store.get_paired(
+                channel = spec.channel,
+                cond_a = cond_a,
+                cond_b = cond_b,
+                event_name = event_name,
+                line_scalar= spec.line_scalar
+            )
 
         if not vals_a:
             return
@@ -338,49 +349,6 @@ class ScatterRenderer(Renderer):
                 showlegend=True,
             ), row=row, col=col)
 
-
-
-class BoxRenderer(Renderer):
-    def __init__(self, show_points: bool = True, show_nodge:bool = False):
-        self.show_points = show_points
-        self.show_nodge = show_nodge
-
-    def render(self, fig, store, style, spec, row, col):
-        if not spec.events:
-            return
-
-        for event_name in spec.events:
-            for condition in spec.all_conditions:
-                values = store.get_event_values(spec.channel,
-                                                condition, event_name)
-                subjects = store.get_event_subject_ids(spec.channel,
-                                                       condition, event_name)
-
-                if not values:
-                    continue
-
-                if spec.group_by and spec.group_map:
-                    groups = [spec.group_map.get(s, "Unknown") for s in subjects]
-                else:
-                    groups = [condition] * len(values)
-
-                unique_groups = dict.fromkeys(groups)
-                for grp in unique_groups:
-                    grp_values = [v for v, g in zip(values, groups) if g == grp]
-                    color = style.condition_color(condition)
-                    label = f"{condition} - {event_name} - {grp}" if spec.group_by else f"{condition} - {event_name}"
-                    show_leg = style.should_show_legend("box", grp)
-
-                    # add the plot
-                    fig.add_trace(go.Box(x = [f"{grp}"] * len(grp_values),
-                                         y = grp_values,
-                                         name = grp, legendgroup = label,
-                                         marker_color = color,
-                                         line_color = color,
-                                         box_points = "all" if self.show_points else False,
-                                         nodged = True if self.show_nodge else False,
-                                         showlegend=show_leg,
-                                         notched=True, ))
 
 #==================================================
 #All future renders be placed right above this line
